@@ -59,7 +59,7 @@ class BackupService {
 
     final out = StringBuffer('# Kumbu\n');
     for (final e in entries) {
-      out.write('\n## ${prettyDate(e.entryDate)}\n');
+      out.write('\n## ${prettyDate(e.entryDate)}, ${clockTime(e.createdAt)}\n');
       if (e.title.trim().isNotEmpty) out.write('\n### ${e.title.trim()}\n');
       out.write('\n${e.body.trim()}\n');
     }
@@ -72,8 +72,8 @@ class BackupService {
     return saved != null;
   }
 
-  /// Merges a JSON backup into the journal. For a date that exists on both
-  /// sides, the entry with the newer `updated_at` wins.
+  /// Merges a JSON backup into the journal. For an entry that exists on both
+  /// sides (same id), the one with the newer `updated_at` wins.
   /// Returns null if the user cancelled. Throws [FormatException] if the file
   /// isn't a Kumbu backup; nothing is imported in that case.
   Future<ImportResult?> importJson() async {
@@ -89,7 +89,7 @@ class BackupService {
     var updated = 0;
     var skipped = 0;
     for (final entry in incoming) {
-      final existing = await JournalDb.instance.byDate(entry.entryDate);
+      final existing = await JournalDb.instance.byId(entry.id);
       if (existing == null) {
         await JournalDb.instance.save(entry);
         added++;

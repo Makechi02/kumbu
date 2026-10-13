@@ -7,6 +7,7 @@ final _shortWeekday = DateFormat('EEE');
 final _long = DateFormat('d MMMM y');
 final _month = DateFormat('MMMM y');
 final _dayNumber = DateFormat('d');
+final _clock = DateFormat('h:mm a');
 
 /// The writer's local calendar date as `yyyy-MM-dd`. Entries are keyed by this.
 String dateKey(DateTime d) => _key.format(d);
@@ -32,3 +33,6 @@ String monthLabel(String key) => _month.format(_parse(key));
 
 /// `12`
 String dayNumber(String key) => _dayNumber.format(_parse(key));
+
+/// `8:14 AM`, in the phone's local time.
+String clockTime(DateTime t) => _clock.format(t.toLocal());

@@ -4,7 +4,8 @@ import '../data/entry.dart';
 import '../data/journal_db.dart';
 import '../theme.dart';
 import '../util/dates.dart';
-import '../widgets/surface_card.dart';
+import '../widgets/entry_card.dart';
+import '../widgets/mood_strip.dart';
 import 'editor_screen.dart';
 
 /// All entries, newest first, grouped by month, with search.
@@ -18,6 +19,7 @@ class EntriesScreen extends StatefulWidget {
 class _EntriesScreenState extends State<EntriesScreen> {
   final _search = TextEditingController();
   List<Entry> _entries = const [];
+  List<int?> _moods = const [];
 
   @override
   void initState() {
@@ -33,15 +35,28 @@ class _EntriesScreenState extends State<EntriesScreen> {
 
   Future<void> _reload() async {
     final rows = await JournalDb.instance.list(query: _search.text);
+    final moods = await _recentMoods();
     if (!mounted) return;
-    setState(() => _entries = rows);
+    setState(() {
+      _entries = rows;
+      _moods = moods;
+    });
+  }
+
+  /// One value per day for the last 30 days, oldest first. Null means no mood.
+  Future<List<int?>> _recentMoods() async {
+    final now = DateTime.now();
+    DateTime day(int i) => DateTime(now.year, now.month, now.day - 29 + i);
+
+    final byDay = await JournalDb.instance.moodsByDay(dateKey(day(0)));
+    return [for (var i = 0; i < 30; i++) byDay[dateKey(day(i))]];
   }
 
   Future<void> _open(Entry entry) async {
     final navigator = Navigator.of(context);
     await navigator.push(
       MaterialPageRoute<void>(
-        builder: (_) => EditorScreen(date: entry.entryDate),
+        builder: (_) => EditorScreen(date: entry.entryDate, entryId: entry.id),
       ),
     );
     await _reload();
@@ -66,6 +81,9 @@ class _EntriesScreenState extends State<EntriesScreen> {
   Widget build(BuildContext context) {
     final colors = AppColors.of(context);
     final items = _withMonthHeadings();
+    if (items.isNotEmpty && _search.text.trim().isEmpty) {
+      items.insert(0, _StripItem(_moods));
+    }
 
     OutlineInputBorder border(Color color) => OutlineInputBorder(
       borderRadius: BorderRadius.circular(28),
@@ -113,6 +131,9 @@ class _EntriesScreenState extends State<EntriesScreen> {
                       itemCount: items.length,
                       itemBuilder: (context, i) {
                         final item = items[i];
+                        if (item is _StripItem) {
+                          return MoodStrip(moods: item.moods);
+                        }
                         if (item is String) {
                           return Padding(
                             padding: const EdgeInsets.fromLTRB(4, 20, 0, 8),
@@ -125,7 +146,7 @@ class _EntriesScreenState extends State<EntriesScreen> {
                             ),
                           );
                         }
-                        return _EntryCard(
+                        return EntryCard(
                           entry: item as Entry,
                           onTap: () => _open(item),
                         );
@@ -139,64 +160,9 @@ class _EntriesScreenState extends State<EntriesScreen> {
   }
 }
 
-class _EntryCard extends StatelessWidget {
-  const _EntryCard({required this.entry, required this.onTap});
+/// Marks where the mood strip goes in the list.
+class _StripItem {
+  const _StripItem(this.moods);
 
-  final Entry entry;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = AppColors.of(context);
-    final body = entry.body.replaceAll('\n', ' ').trim();
-
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 10),
-      child: SurfaceCard(
-        onTap: onTap,
-        padding: const EdgeInsets.all(14),
-        child: Row(
-          children: [
-            SizedBox(
-              width: 48,
-              child: Column(
-                children: [
-                  Text(dayNumber(entry.entryDate), style: serif(context, 24)),
-                  Text(
-                    shortWeekday(entry.entryDate),
-                    style: TextStyle(color: colors.muted, fontSize: 12),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  if (entry.title.isNotEmpty)
-                    Text(
-                      entry.title,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  if (body.isNotEmpty)
-                    Text(
-                      body,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(color: colors.muted),
-                    ),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
+  final List<int?> moods;
 }

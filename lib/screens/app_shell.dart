@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../data/backup_service.dart';
 import 'backup_screen.dart';
+import 'calendar_screen.dart';
 import 'entries_screen.dart';
 import 'today_screen.dart';
 
@@ -15,7 +16,12 @@ class AppShell extends StatefulWidget {
 }
 
 class _AppShellState extends State<AppShell> {
-  static const _screens = [TodayScreen(), EntriesScreen(), BackupScreen()];
+  static const _screens = [
+    TodayScreen(),
+    CalendarScreen(),
+    EntriesScreen(),
+    BackupScreen(),
+  ];
 
   int _index = 0;
   bool _backupDue = false;
@@ -49,32 +55,37 @@ class _AppShellState extends State<AppShell> {
       bottomNavigationBar: keyboardOpen
           ? null
           : NavigationBar(
-        selectedIndex: _index,
-        onDestinationSelected: _select,
-        destinations: [
-          const NavigationDestination(
-            icon: Icon(Icons.edit_outlined),
-            selectedIcon: Icon(Icons.edit),
-            label: 'Write',
-          ),
-          const NavigationDestination(
-            icon: Icon(Icons.menu_book_outlined),
-            selectedIcon: Icon(Icons.menu_book),
-            label: 'Entries',
-          ),
-          NavigationDestination(
-            icon: Badge(
-              isLabelVisible: _backupDue,
-              child: const Icon(Icons.archive_outlined),
+              selectedIndex: _index,
+              onDestinationSelected: _select,
+              destinations: [
+                const NavigationDestination(
+                  icon: Icon(Icons.edit_outlined),
+                  selectedIcon: Icon(Icons.edit),
+                  label: 'Write',
+                ),
+                const NavigationDestination(
+                  icon: Icon(Icons.calendar_month_outlined),
+                  selectedIcon: Icon(Icons.calendar_month),
+                  label: 'Calendar',
+                ),
+                const NavigationDestination(
+                  icon: Icon(Icons.menu_book_outlined),
+                  selectedIcon: Icon(Icons.menu_book),
+                  label: 'Entries',
+                ),
+                NavigationDestination(
+                  icon: Badge(
+                    isLabelVisible: _backupDue,
+                    child: const Icon(Icons.archive_outlined),
+                  ),
+                  selectedIcon: Badge(
+                    isLabelVisible: _backupDue,
+                    child: const Icon(Icons.archive),
+                  ),
+                  label: 'Backup',
+                ),
+              ],
             ),
-            selectedIcon: Badge(
-              isLabelVisible: _backupDue,
-              child: const Icon(Icons.archive),
-            ),
-            label: 'Backup',
-          ),
-        ],
-      ),
     );
   }
 }

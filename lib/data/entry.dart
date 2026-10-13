@@ -33,7 +33,11 @@ class Entry {
     );
   }
 
-  Entry edited({required String title, required String body}) {
+  Entry edited({
+    required String title,
+    required String body,
+    required int? mood,
+  }) {
     return Entry(
       id: id,
       entryDate: entryDate,
@@ -46,14 +50,14 @@ class Entry {
   }
 
   Map<String, Object?> toMap() => {
-        'id': id,
-        'entry_date': entryDate,
-        'title': title,
-        'body': body,
-        'mood': mood,
-        'created_at': createdAt.toIso8601String(),
-        'updated_at': updatedAt.toIso8601String(),
-      };
+    'id': id,
+    'entry_date': entryDate,
+    'title': title,
+    'body': body,
+    'mood': mood,
+    'created_at': createdAt.toIso8601String(),
+    'updated_at': updatedAt.toIso8601String(),
+  };
 
   factory Entry.fromMap(Map<String, Object?> m) {
     return Entry(

@@ -94,8 +94,10 @@ class _BackupScreenState extends State<BackupScreen> {
               subtitle: 'Everything, as a file you can import later.',
               onTap: _busy
                   ? null
-                  : () => _run(() async =>
-              await _backup.exportJson() ? 'Backup saved.' : null),
+                  : () => _run(
+                      () async =>
+                          await _backup.exportJson() ? 'Backup saved.' : null,
+                    ),
             ),
             const SizedBox(height: 10),
             _ActionCard(
@@ -104,23 +106,26 @@ class _BackupScreenState extends State<BackupScreen> {
               subtitle: 'Readable anywhere. Can’t be imported.',
               onTap: _busy
                   ? null
-                  : () => _run(() async =>
-              await _backup.exportMarkdown() ? 'Journal saved.' : null),
+                  : () => _run(
+                      () async => await _backup.exportMarkdown()
+                          ? 'Journal saved.'
+                          : null,
+                    ),
             ),
             const SizedBox(height: 10),
             _ActionCard(
               icon: Icons.file_upload_outlined,
               title: 'Import backup',
               subtitle:
-              'Adds missing entries. If a day exists in both, the newer version is kept.',
+                  'Adds missing entries. If an entry exists in both, the newer version is kept.',
               onTap: _busy
                   ? null
                   : () => _run(() async {
-                final r = await _backup.importJson();
-                if (r == null) return null;
-                return 'Imported: ${r.added} new, ${r.updated} updated, '
-                    '${r.skipped} unchanged.';
-              }),
+                      final r = await _backup.importJson();
+                      if (r == null) return null;
+                      return 'Imported: ${r.added} new, ${r.updated} updated, '
+                          '${r.skipped} unchanged.';
+                    }),
             ),
             const SizedBox(height: 20),
             Text(

@@ -6,14 +6,30 @@ import '../data/entry.dart';
 import '../data/journal_db.dart';
 import '../theme.dart';
 import '../util/dates.dart';
+import '../widgets/mood_picker.dart';
 import '../widgets/surface_card.dart';
 
 /// Writes the entry for [date]. Saves automatically as you type, and when the
 /// app is backgrounded or the screen closes.
 class EditorScreen extends StatefulWidget {
-  const EditorScreen({super.key, required this.date});
+  const EditorScreen({
+    super.key,
+    required this.date,
+    this.entryId,
+    this.startNew = false,
+    this.onNewEntry,
+  });
 
   final String date;
+
+  /// Open this specific entry. When null, the latest entry on [date] is used.
+  final String? entryId;
+
+  /// With no [entryId], start a blank entry instead of opening the latest one.
+  final bool startNew;
+
+  /// Shows a "new entry" button when set.
+  final VoidCallback? onNewEntry;
 
   @override
   State<EditorScreen> createState() => _EditorScreenState();
@@ -26,6 +42,7 @@ class _EditorScreenState extends State<EditorScreen>
   final _status = ValueNotifier<String>('');
   Timer? _debounce;
   Entry? _entry;
+  int? _mood;
   bool _loaded = false;
 
   @override
@@ -51,12 +68,25 @@ class _EditorScreenState extends State<EditorScreen>
   }
 
   Future<void> _load() async {
-    final entry = await JournalDb.instance.byDate(widget.date);
+    final Entry? entry;
+    if (widget.entryId != null) {
+      entry = await JournalDb.instance.byId(widget.entryId!);
+    } else if (widget.startNew) {
+      entry = null;
+    } else {
+      entry = await JournalDb.instance.latestOnDate(widget.date);
+    }
     if (!mounted) return;
     _entry = entry;
     _title.text = entry?.title ?? '';
     _body.text = entry?.body ?? '';
+    _mood = entry?.mood;
     setState(() => _loaded = true);
+  }
+
+  void _setMood(int? mood) {
+    setState(() => _mood = mood);
+    _onChanged('');
   }
 
   void _onChanged(String _) {
@@ -71,26 +101,80 @@ class _EditorScreenState extends State<EditorScreen>
     // Read everything before the first await.
     final title = _title.text;
     final body = _body.text;
+    final mood = _mood;
     final current = _entry;
 
-    final isBlank = title.trim().isEmpty && body.trim().isEmpty;
+    final isBlank = title.trim().isEmpty && body.trim().isEmpty && mood == null;
     if (current == null && isBlank) return; // Don't create empty entries.
-    if (current != null && current.title == title && current.body == body) {
+    if (current != null &&
+        current.title == title &&
+        current.body == body &&
+        current.mood == mood) {
       return; // Nothing changed.
     }
 
     final saved = (current ?? Entry.blank(widget.date)).edited(
       title: title,
       body: body,
+      mood: mood,
     );
     _entry = saved; // Set now so an overlapping save reuses the same id.
 
     try {
       await JournalDb.instance.save(saved);
-      if (mounted) _status.value = 'Saved';
+      if (mounted) {
+        _status.value = 'Saved';
+        if (current == null)
+          setState(() {}); // Now there is something to delete.
+      }
     } catch (_) {
       _entry = current;
       if (mounted) _status.value = 'Could not save';
+    }
+  }
+
+  Future<void> _confirmDelete() async {
+    final entry = _entry;
+    if (entry == null) return;
+    final navigator = Navigator.of(context);
+    final messenger = ScaffoldMessenger.of(context);
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Delete this entry?'),
+        content: const Text('This cannot be undone.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            style: TextButton.styleFrom(
+              foregroundColor: Theme.of(dialogContext).colorScheme.error,
+            ),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+
+    // Empty the editor first, so saving on close can't write the entry back.
+    _debounce?.cancel();
+    _entry = null;
+    _title.clear();
+    _body.clear();
+    _mood = null;
+
+    await JournalDb.instance.delete(entry.id);
+    messenger.showSnackBar(const SnackBar(content: Text('Entry deleted')));
+
+    if (navigator.canPop()) {
+      navigator.pop();
+    } else if (mounted) {
+      await _load(); // Back to today's other entry, or a blank page.
     }
   }
 
@@ -110,8 +194,30 @@ class _EditorScreenState extends State<EditorScreen>
                     padding: const EdgeInsets.fromLTRB(20, 16, 20, 16),
                     child: Column(
                       children: [
-                        _Header(date: widget.date, status: _status),
-                        const SizedBox(height: 16),
+                        _Header(
+                          date: widget.date,
+                          status: _status,
+                          onNewEntry: widget.onNewEntry,
+                          onDelete: _entry == null ? null : _confirmDelete,
+                        ),
+                        const SizedBox(height: 8),
+                        Row(
+                          children: [
+                            MoodPicker(value: _mood, onChanged: _setMood),
+                            if (_mood != null)
+                              Expanded(
+                                child: Padding(
+                                  padding: const EdgeInsets.only(left: 8),
+                                  child: Text(
+                                    moodLabel(_mood!),
+                                    overflow: TextOverflow.ellipsis,
+                                    style: TextStyle(color: colors.muted),
+                                  ),
+                                ),
+                              ),
+                          ],
+                        ),
+                        const SizedBox(height: 8),
                         Expanded(
                           child: SurfaceCard(
                             padding: const EdgeInsets.fromLTRB(20, 14, 20, 8),
@@ -173,10 +279,17 @@ class _EditorScreenState extends State<EditorScreen>
 }
 
 class _Header extends StatelessWidget {
-  const _Header({required this.date, required this.status});
+  const _Header({
+    required this.date,
+    required this.status,
+    this.onNewEntry,
+    this.onDelete,
+  });
 
   final String date;
   final ValueNotifier<String> status;
+  final VoidCallback? onNewEntry;
+  final VoidCallback? onDelete;
 
   @override
   Widget build(BuildContext context) {
@@ -212,6 +325,18 @@ class _Header extends StatelessWidget {
           builder: (context, value, _) =>
               Text(value, style: TextStyle(color: colors.muted, fontSize: 13)),
         ),
+        if (onDelete != null)
+          IconButton(
+            tooltip: 'Delete entry',
+            icon: const Icon(Icons.delete_outline),
+            onPressed: onDelete,
+          ),
+        if (onNewEntry != null)
+          IconButton(
+            tooltip: 'New entry',
+            icon: const Icon(Icons.add),
+            onPressed: onNewEntry,
+          ),
       ],
     );
   }
